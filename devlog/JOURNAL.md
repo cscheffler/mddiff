@@ -1,0 +1,3 @@
+# 2025-02-14
+
+Long session but made steady progress. Took the SDD updates in stride, then got pulled into normalization. The hash-separator heading fix was straightforward once I added the escape hatch. The escaped double-underscore bug was trickier—needed to guard the regex replacements so backslash-escaped sequences survive. Added synthetic fixtures to reproduce the lesson-plan issues; shrinking the set down to three target regressions feels much cleaner. The math-subscript case ended up fixed as a side effect of the escape-aware tweaks. Tests now green across the regression fixtures. Good coverage, good stopping point.

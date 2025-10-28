@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mddiff"
+version = "0.1.0"
+description = "Markdown normalization and diff utilities"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Carl" }]
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+]
+
+[project.urls]
+homepage = "https://example.com/mddiff"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

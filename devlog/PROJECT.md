@@ -1,3 +1,7 @@
+# Markdown diff library
+
+## Project description
+
 We'll build a Markdown diff library in Python.
 
 Its purpose is to take any two Markdown texts, of arbitrary length, normalize them, compare them, and produce one, unified diff view on the two texts.
@@ -9,3 +13,13 @@ When comparing the two texts, we want to identified matching or nearly matching 
 The library should produce a data structure that can be iterated over to get each line from the unified diff view, where each line is marked as unchanged, inserted, deleted, or edited. Each edited line contains an iterable over sequences of words/symbols, each marked as unchanged, inserted, deleted, or edited.
 
 There should also be functionality to print this data structure out as text, showing which lines and words were changed.
+
+## What's done
+
+- Normalization MVP implemented with escape-aware inline handling and regression fixtures.
+
+## What's left
+
+- Implement diff engine: line-level matching, inline token diff, data models, rendering.
+- Build CLI wrapper and package scaffolding per SDD (CLI entry point, pyproject configuration).
+- Add broader regression corpus, performance checks, and documentation per SDD milestones.
