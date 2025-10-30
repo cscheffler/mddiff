@@ -4,7 +4,7 @@ import pytest
 
 from mddiff import normalize
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures" / "real_docs"
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "normalize"
 
 
 @pytest.mark.parametrize(
