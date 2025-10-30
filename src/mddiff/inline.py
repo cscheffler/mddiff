@@ -53,7 +53,9 @@ def diff_inline(left: str, right: str) -> tuple[InlineDiffSegment, ...]:
         )
         segments.append(newline_segment)
 
-    return _coalesce_segments(segments)
+    segments = _coalesce_segments(segments)
+    segments = _merge_whitespace_bridges(segments)
+    return segments
 
 
 def _segment(kind: ChangeType, left: str, right: str) -> InlineDiffSegment:
@@ -90,3 +92,65 @@ def _coalesce_segments(segments: Sequence[InlineDiffSegment]) -> tuple[InlineDif
             coalesced.append(segment)
     return tuple(coalesced)
 
+
+def _merge_whitespace_bridges(
+    segments: Sequence[InlineDiffSegment],
+) -> tuple[InlineDiffSegment, ...]:
+    if len(segments) < 3:
+        return tuple(segments)
+
+    result: List[InlineDiffSegment] = []
+    i = 0
+    while i < len(segments):
+        segment = segments[i]
+        if (
+            0 < i < len(segments) - 1
+            and segment.kind is ChangeType.UNCHANGED
+            and _is_mergeable_whitespace(segment)
+            and _is_change_segment(result[-1])
+            and _is_change_segment(segments[i + 1])
+        ):
+            prev = result.pop()
+            next_segment = segments[i + 1]
+            combined = _combine_segments(prev, segment, next_segment)
+            result.append(combined)
+            i += 2
+            continue
+
+        result.append(segment)
+        i += 1
+
+    return tuple(result)
+
+
+def _is_mergeable_whitespace(segment: InlineDiffSegment) -> bool:
+    text = segment.left_text or segment.right_text
+    if not text:
+        return False
+    if "\n" in text:
+        return False
+    return text.strip() == ""
+
+
+def _is_change_segment(segment: InlineDiffSegment) -> bool:
+    return segment.kind in {ChangeType.EDITED, ChangeType.INSERTED, ChangeType.DELETED}
+
+
+def _combine_segments(
+    left_segment: InlineDiffSegment,
+    whitespace: InlineDiffSegment,
+    right_segment: InlineDiffSegment,
+) -> InlineDiffSegment:
+    left_text = left_segment.left_text + whitespace.left_text + right_segment.left_text
+    right_text = left_segment.right_text + whitespace.right_text + right_segment.right_text
+    has_left = bool(left_text)
+    has_right = bool(right_text)
+
+    if has_left and has_right:
+        kind = ChangeType.EDITED
+    elif has_left:
+        kind = ChangeType.DELETED
+    else:
+        kind = ChangeType.INSERTED
+
+    return InlineDiffSegment(kind=kind, left_text=left_text, right_text=right_text)

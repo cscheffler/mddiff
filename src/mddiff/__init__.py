@@ -5,6 +5,7 @@ from .models import (
     ChangeType,
     DiffLine,
     DiffResult,
+    InlineDiffConfig,
     NormalizationMetadata,
     NormalizedDocument,
 )
@@ -21,4 +22,5 @@ __all__ = [
     "DiffResult",
     "DiffLine",
     "ChangeType",
+    "InlineDiffConfig",
 ]

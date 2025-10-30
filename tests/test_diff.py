@@ -1,4 +1,4 @@
-from mddiff import ChangeType, diff, render_unified
+from mddiff import ChangeType, InlineDiffConfig, diff, render_unified
 
 
 def test_diff_identical_documents_yields_unchanged_lines():
@@ -60,3 +60,59 @@ def test_render_unified_marks_inline_and_line_changes():
     rendered = render_unified(result)
 
     assert rendered == " # Title\n \n-Beta\n+Beta{+ two+}\n"
+
+
+def test_inline_config_can_disable_inline_diffing():
+    config = InlineDiffConfig(min_ratio=0.9)
+    result = diff("value one\n", "value two\n", inline_config=config)
+
+    kinds = [line.kind for line in result.lines]
+    assert kinds == [ChangeType.DELETED, ChangeType.INSERTED]
+
+
+def test_diff_context_zero_emits_only_change_lines():
+    left = "- alpha\n- beta\n- charlie\n"
+    right = "- alpha\n- beta two\n- charlie\n"
+
+    result = diff(left, right, context=0)
+
+    kinds = [line.kind for line in result.lines]
+    assert kinds == [ChangeType.SKIPPED, ChangeType.EDITED]
+    header = result.lines[0]
+    assert header.left_text.startswith("@@ -2,1 +2,1 @@")
+    assert result.lines[1].kind is ChangeType.EDITED
+    assert result.context == 0
+
+
+def test_diff_context_includes_surrounding_lines():
+    left = "- alpha\n- beta\n- charlie\n"
+    right = "- alpha\n- beta two\n- charlie\n"
+
+    result = diff(left, right, context=1)
+
+    kinds = [line.kind for line in result.lines]
+    assert kinds == [
+        ChangeType.SKIPPED,
+        ChangeType.UNCHANGED,
+        ChangeType.EDITED,
+        ChangeType.UNCHANGED,
+    ]
+    assert result.context == 1
+    rendered = render_unified(result)
+    assert rendered.startswith("@@ -1,3 +1,3 @@\n")
+    assert " - alpha\n" in rendered
+    assert "- - beta\n" not in rendered
+    assert "-- beta\n" in rendered
+    assert "+- beta{+ two+}\n" in rendered
+
+
+def test_diff_negative_context_raises():
+    left = "alpha\n"
+    right = "beta\n"
+
+    try:
+        diff(left, right, context=-1)
+    except ValueError as exc:
+        assert "context" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("Expected ValueError for negative context")

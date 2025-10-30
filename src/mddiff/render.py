@@ -21,6 +21,8 @@ def render_unified(diff_result: DiffResult) -> str:
             rendered_lines.append(f"+{line.right_text or ''}")
         elif line.kind is ChangeType.EDITED:
             rendered_lines.extend(_render_edited_line(line))
+        elif line.kind is ChangeType.SKIPPED:
+            rendered_lines.append(line.left_text or line.right_text or "")
         else:  # pragma: no cover - defensive guard
             raise ValueError(f"Unsupported line kind: {line.kind}")
 
@@ -71,4 +73,3 @@ def _render_segment(segment: InlineDiffSegment, *, side: str) -> str:
             return f"[-{segment.left_text}-]" if segment.left_text else ""
         return f"{{+{segment.right_text}+}}" if segment.right_text else ""
     raise ValueError(f"Unsupported segment kind: {segment.kind}")
-

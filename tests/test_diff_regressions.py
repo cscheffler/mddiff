@@ -1,7 +1,7 @@
 from collections import Counter
 from pathlib import Path
 
-from mddiff import ChangeType, diff, render_unified
+from mddiff import ChangeType, InlineDiffConfig, diff, render_unified
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "diff"
 
@@ -14,7 +14,8 @@ def test_diff_complex_markdown_constructs():
     left = _load("complex_left.md")
     right = _load("complex_right.md")
 
-    result = diff(left, right)
+    config = InlineDiffConfig(min_real_quick_ratio=0.1, min_quick_ratio=0.2, min_ratio=0.25)
+    result = diff(left, right, inline_config=config)
 
     heading_line = next(line for line in result.lines if line.left_text == "# Overview\n")
     assert heading_line.kind is ChangeType.EDITED
@@ -47,9 +48,11 @@ def test_diff_complex_markdown_constructs():
         for line in result.lines
         if line.left_text == 'def footer_note(): return "done"\n'
     )
-    assert footer_line.kind is ChangeType.EDITED
-    assert footer_line.segments[0].left_text == "def"
-    assert footer_line.segments[0].right_text == "#"
+    assert footer_line.kind is ChangeType.DELETED
+    assert footer_line.segments == ()
+
+    appendix_header = next(line for line in result.lines if line.right_text == "# Appendix\n")
+    assert appendix_header.kind is ChangeType.INSERTED
 
     rendered = render_unified(result)
     expected = (
@@ -77,8 +80,8 @@ def test_diff_complex_markdown_constructs():
         " > Quote line\n"
         "+>> Nested thought\n"
         " \n"
-        "-[-def-] [-footer_note(): return \"done\"-]\n"
-        "+{+#+} {+Appendix+}\n"
+        "-def footer_note(): return \"done\"\n"
+        "+# Appendix\n"
         "+\n"
         "+The footer now lives here.\n"
     )
@@ -109,8 +112,13 @@ def test_diff_large_documents_handles_bulk_changes():
         if line.left_text == "Results snapshot 5 remains stable.\n"
     )
     assert snapshot_change.kind is ChangeType.EDITED
-    assert snapshot_change.segments[1].left_text == "remains"
-    assert snapshot_change.segments[1].right_text == "now"
+    assert [segment.kind for segment in snapshot_change.segments] == [
+        ChangeType.UNCHANGED,
+        ChangeType.EDITED,
+        ChangeType.UNCHANGED,
+    ]
+    assert snapshot_change.segments[1].left_text == "remains stable"
+    assert snapshot_change.segments[1].right_text == "now reflects refactor"
 
     throughput_change = next(line for line in result.lines if line.left_text == "| throughput | 20 |\n")
     assert throughput_change.kind is ChangeType.EDITED

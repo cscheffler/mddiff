@@ -37,6 +37,7 @@ class ChangeType(str, Enum):
     INSERTED = "inserted"
     DELETED = "deleted"
     EDITED = "edited"
+    SKIPPED = "skipped"
 
 
 @dataclass(frozen=True)
@@ -83,9 +84,19 @@ class DiffResult:
     left: NormalizedDocument
     right: NormalizedDocument
     lines: Tuple[DiffLine, ...]
+    context: int | None = None
 
     @property
     def has_changes(self) -> bool:
         """Return True when the diff captured at least one change."""
 
         return any(line.kind is not ChangeType.UNCHANGED for line in self.lines)
+
+
+@dataclass(frozen=True)
+class InlineDiffConfig:
+    """Configuration controlling when inline diffs should be emitted."""
+
+    min_real_quick_ratio: float = 0.2
+    min_quick_ratio: float = 0.3
+    min_ratio: float = 0.35
