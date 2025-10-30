@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Markdown normalization and diff utilities"
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "Carl" }]
+authors = [{ name = "Carl Scheffler" }]
 dependencies = []
 
 [project.optional-dependencies]
