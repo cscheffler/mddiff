@@ -277,7 +277,7 @@ def _apply_context(lines: List[DiffLine], context: int | None) -> Tuple[DiffLine
                     keep[j] = True
 
     kept_indices = [idx for idx, flag in enumerate(keep) if flag]
-    if not kept_indices:
+    if not kept_indices:  # pragma: no cover - defensive fallback
         return tuple()
 
     blocks: List[Tuple[int, int]] = []

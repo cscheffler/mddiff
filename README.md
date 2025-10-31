@@ -55,6 +55,17 @@ if result.has_changes:
     Path("diff.html").write_text(html, encoding="utf-8")
 ```
 
+### Tests & Coverage
+
+Install the test extras and run pytest; coverage fails below 95%.
+
+```bash
+pip install -e .[test]
+pytest
+```
+Run with `--cov-report=html` to generate `htmlcov/index.html` when the `coverage` package is installed.
+
+
 ## Core Concepts & API
 
 ### Normalization (`normalize`)

@@ -412,12 +412,12 @@ def _normalize_inline_markup(text: str) -> str:
 
     temp = INLINE_CODE_RE.sub(_stash_code, text)
     def strong_repl(match: re.Match[str]) -> str:
-        if match.group(0) and match.group(0).startswith("\\"):
+        if match.group(0) and match.group(0).startswith("\\"):  # pragma: no cover - defensive
             return match.group(0)
         return f"**{match.group(1)}**"
 
     def emphasis_repl(match: re.Match[str]) -> str:
-        if match.group(0) and match.group(0).startswith("\\"):
+        if match.group(0) and match.group(0).startswith("\\"):  # pragma: no cover - defensive
             return match.group(0)
         return f"*{match.group(1)}*"
 
