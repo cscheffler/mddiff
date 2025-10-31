@@ -10,6 +10,7 @@ from typing import Iterable
 from .diff import diff
 from .models import InlineDiffConfig
 from .render import render_unified
+from .render_html import HtmlRenderOptions, render_html
 
 
 def main(argv: Iterable[str] | None = None) -> int:
@@ -39,7 +40,12 @@ def main(argv: Iterable[str] | None = None) -> int:
         parser.error(str(exc))
 
     if result.has_changes:
-        output = render_unified(result)
+        if args.format == "text":
+            output = render_unified(result)
+        else:
+            layout = "unified" if args.format == "html-unified" else "split"
+            html_options = HtmlRenderOptions(layout=layout)
+            output = render_html(result, options=html_options)
         if output:
             sys.stdout.write(output)
             if not output.endswith("\n"):
@@ -77,6 +83,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="Minimum difflib ratio required to emit inline edits (default: 0.35).",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("text", "html-split", "html-unified"),
+        default="text",
+        help="Output format for changes (default: text).",
     )
     parser.add_argument(
         "--version",

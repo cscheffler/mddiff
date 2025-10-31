@@ -81,7 +81,6 @@ Results snapshot 7 remains stable.
 
 ## Section 8
 
-- Metric 8.A
 - Metric 8.B
 - Metric 8.C new
 

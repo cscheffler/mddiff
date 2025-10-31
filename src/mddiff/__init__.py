@@ -11,6 +11,7 @@ from .models import (
 )
 from .normalize import normalize
 from .render import render_unified
+from .render_html import HtmlRenderOptions, default_html_styles, render_html
 
 __all__ = [
     "normalize",
@@ -23,4 +24,7 @@ __all__ = [
     "DiffLine",
     "ChangeType",
     "InlineDiffConfig",
+    "render_html",
+    "HtmlRenderOptions",
+    "default_html_styles",
 ]

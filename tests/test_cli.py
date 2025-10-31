@@ -83,3 +83,32 @@ def test_cli_rejects_double_stdin():
     assert result.returncode != 0
     assert result.stdout == ""
     assert "Cannot read both inputs" in result.stderr
+
+
+def test_cli_format_html_emits_styled_markup(tmp_path):
+    left = tmp_path / "left.md"
+    right = tmp_path / "right.md"
+    left.write_text("Value one\n", encoding="utf-8")
+    right.write_text("Value two\n", encoding="utf-8")
+
+    result = _run_cli("--format", "html-split", str(left), str(right))
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert result.stdout.startswith("<style type=\"text/css\">")
+    assert "class=\"mddiff-diff mddiff-diff--layout-split\"" in result.stdout
+
+
+def test_cli_format_html_unified_emits_markers(tmp_path):
+    left = tmp_path / "left.md"
+    right = tmp_path / "right.md"
+    left.write_text("Value one\n", encoding="utf-8")
+    right.write_text("Value two\n", encoding="utf-8")
+
+    result = _run_cli("--format", "html-unified", str(left), str(right))
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert "mddiff-diff--layout-unified" in result.stdout
+    assert "mddiff-segment--deleted" in result.stdout
+    assert "mddiff-segment--inserted" in result.stdout

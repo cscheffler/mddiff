@@ -48,7 +48,9 @@ mddiff --inline-min-ratio 0.9 left.md right.md
 ## Library Usage
 
 ```python
-from mddiff import InlineDiffConfig, diff, render_unified
+from pathlib import Path
+
+from mddiff import InlineDiffConfig, HtmlRenderOptions, diff, render_html, render_unified
 
 result = diff("old text\n", "new text\n")
 if result.has_changes:
@@ -57,6 +59,15 @@ if result.has_changes:
 # Tune inline diff sensitivity by passing InlineDiffConfig.
 config = InlineDiffConfig(min_ratio=0.5)
 result = diff("alpha\n", "beta\n", inline_config=config)
+
+# Render HTML with default inline stylesheet
+if result.has_changes:
+    html = render_html(result)
+    Path("diff.html").write_text(html, encoding="utf-8")
+
+# Override the class prefix, skip embedding styles, and switch to unified layout
+options = HtmlRenderOptions(include_styles=False, class_prefix="docs", layout="unified")
+render_html(result, options=options)
 ```
 
 See `tests/` for additional examples of working with the diff data structures.
@@ -123,6 +134,7 @@ print(doc.metadata.transformations.get("table_separator", 0))
 ### Rendering
 
 - `render_unified(diff_result)` produces a diff-like string with unified headers (`@@ -l,c +r,c @@`), `-` / `+` prefixes, and inline `{+ +}` / `[- -]` markers.
+- `render_html(diff_result, options=None)` returns a styled HTML snippet (optionally including a `<style>` block) with semantic class names for lines, gutters, markers, and inline segments. Use `HtmlRenderOptions` to toggle stylesheet embedding, rename the class prefix, show/hide line numbers, or choose between `split` (side-by-side) and `unified` layouts. Call `default_html_styles()` when you want a standalone stylesheet string.
 - The renderer preserves trailing newlines from the source lines via dedicated inline segments, ensuring round-tripping when piping back into files or patch tooling.
 - If you supply your own renderer, treat `ChangeType.SKIPPED` as metadata (not a content change) and skip those lines when aggregating change statistics.
 
@@ -147,5 +159,6 @@ print(doc.metadata.transformations.get("table_separator", 0))
 - CLI flags mirror the library surface:
   - `--inline-min-real-quick`, `--inline-min-quick`, `--inline-min-ratio` map to `InlineDiffConfig` fields.
   - `--context` matches the `context` parameter on `diff`.
+- Use `--format html-split` for side-by-side HTML or `--format html-unified` for unified HTML instead of text (default: text). The HTML output embeds a minimal stylesheet by default, mirroring `render_html` and its layout-specific classes.
 - CLI reads a single side from stdin (`-`) and prevents double-stdin to avoid blocking; exit code `0` means no changes, `1` means differences were detected.
 - Rendering matches `render_unified` output, so you can capture CLI output and feed it back into tools expecting standard unified diff formatting.
