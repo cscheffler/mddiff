@@ -11,7 +11,13 @@ from .models import (
 )
 from .normalize import normalize
 from .render import render_unified
-from .render_html import HtmlRenderOptions, default_html_styles, render_html
+from .render_html import (
+    HtmlClassNames,
+    HtmlRenderOptions,
+    default_html_class_names,
+    default_html_styles,
+    render_html,
+)
 
 __all__ = [
     "normalize",
@@ -27,4 +33,6 @@ __all__ = [
     "render_html",
     "HtmlRenderOptions",
     "default_html_styles",
+    "default_html_class_names",
+    "HtmlClassNames",
 ]

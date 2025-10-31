@@ -8,7 +8,20 @@ from .models import ChangeType, DiffLine, DiffResult, InlineDiffSegment
 
 
 def render_unified(diff_result: DiffResult) -> str:
-    """Render a diff result similar to unified diff output."""
+    """Render a :class:`DiffResult` as traditional unified diff text.
+
+    Parameters
+    ----------
+    diff_result:
+        Structured diff output produced by :func:`mddiff.diff` or
+        :func:`mddiff.diff_normalized`.
+
+    Returns
+    -------
+    str
+        Unified diff text with inline `{+ +}` / `[- -]` markers for edited
+        spans.
+    """
 
     rendered_lines: List[str] = []
 
@@ -30,6 +43,7 @@ def render_unified(diff_result: DiffResult) -> str:
 
 
 def _render_edited_line(line: DiffLine) -> Iterable[str]:
+    """Render the left/right components for an edited line."""
     left_text = _render_inline_segments(line, side="left")
     right_text = _render_inline_segments(line, side="right")
     output: List[str] = []
@@ -42,6 +56,7 @@ def _render_edited_line(line: DiffLine) -> Iterable[str]:
 
 
 def _render_inline_segments(line: DiffLine, *, side: str) -> str | None:
+    """Render inline segments for one side of an edited line."""
     assert line.kind is ChangeType.EDITED
 
     segments = line.segments
@@ -62,6 +77,7 @@ def _render_inline_segments(line: DiffLine, *, side: str) -> str | None:
 
 
 def _render_segment(segment: InlineDiffSegment, *, side: str) -> str:
+    """Render a single inline segment for the requested side."""
     if segment.kind is ChangeType.UNCHANGED:
         return segment.left_text if side == "left" else segment.right_text
     if segment.kind is ChangeType.DELETED:

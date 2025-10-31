@@ -12,7 +12,20 @@ _TOKEN_RE = re.compile(r"\s+|[A-Za-z0-9_]+|[^\w\s]")
 
 
 def diff_inline(left: str, right: str) -> tuple[InlineDiffSegment, ...]:
-    """Compute inline diff segments between two lines of text."""
+    """Generate inline diff segments for two Markdown lines.
+
+    Parameters
+    ----------
+    left, right:
+        Individual lines (including trailing newlines) drawn from the normalized
+        documents.
+
+    Returns
+    -------
+    tuple[InlineDiffSegment, ...]
+        Ordered inline segments describing unchanged, inserted, deleted, and
+        edited spans ready for downstream renderers.
+    """
 
     left_body, left_newline = _strip_trailing_newline(left)
     right_body, right_newline = _strip_trailing_newline(right)
@@ -59,22 +72,26 @@ def diff_inline(left: str, right: str) -> tuple[InlineDiffSegment, ...]:
 
 
 def _segment(kind: ChangeType, left: str, right: str) -> InlineDiffSegment:
+    """Construct a diff segment with the supplied payload."""
     return InlineDiffSegment(kind=kind, left_text=left, right_text=right)
 
 
 def _tokenize(text: str) -> List[str]:
+    """Split a line into diff-friendly tokens."""
     if not text:
         return []
     return _TOKEN_RE.findall(text)
 
 
 def _strip_trailing_newline(value: str) -> tuple[str, bool]:
+    """Remove a single trailing newline, returning the flag separately."""
     if value.endswith("\n"):
         return value[:-1], True
     return value, False
 
 
 def _coalesce_segments(segments: Sequence[InlineDiffSegment]) -> tuple[InlineDiffSegment, ...]:
+    """Merge adjacent segments that share the same change type."""
     if not segments:
         return ()
 
@@ -96,6 +113,7 @@ def _coalesce_segments(segments: Sequence[InlineDiffSegment]) -> tuple[InlineDif
 def _merge_whitespace_bridges(
     segments: Sequence[InlineDiffSegment],
 ) -> tuple[InlineDiffSegment, ...]:
+    """Combine whitespace between opposing changes into a single segment."""
     if len(segments) < 3:
         return tuple(segments)
 
@@ -124,6 +142,7 @@ def _merge_whitespace_bridges(
 
 
 def _is_mergeable_whitespace(segment: InlineDiffSegment) -> bool:
+    """Return True when a segment is pure, single-line whitespace."""
     text = segment.left_text or segment.right_text
     if not text:
         return False
@@ -133,6 +152,7 @@ def _is_mergeable_whitespace(segment: InlineDiffSegment) -> bool:
 
 
 def _is_change_segment(segment: InlineDiffSegment) -> bool:
+    """Return True for segments representing inserts, deletes, or edits."""
     return segment.kind in {ChangeType.EDITED, ChangeType.INSERTED, ChangeType.DELETED}
 
 
@@ -141,6 +161,7 @@ def _combine_segments(
     whitespace: InlineDiffSegment,
     right_segment: InlineDiffSegment,
 ) -> InlineDiffSegment:
+    """Merge change + whitespace + change into a single segment."""
     left_text = left_segment.left_text + whitespace.left_text + right_segment.left_text
     right_text = left_segment.right_text + whitespace.right_text + right_segment.right_text
     has_left = bool(left_text)

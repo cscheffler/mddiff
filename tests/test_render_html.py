@@ -1,4 +1,9 @@
-from mddiff import HtmlRenderOptions, diff, render_html
+from mddiff import (
+    HtmlRenderOptions,
+    default_html_class_names,
+    diff,
+    render_html,
+)
 
 
 def test_render_html_wraps_lines_with_classes():
@@ -46,3 +51,13 @@ def test_render_html_unified_layout_emits_markers():
     assert html.count('mddiff-segment--deleted') >= 1
     assert html.count('mddiff-segment--inserted') >= 1
     assert 'text-decoration-line: line-through;' in html
+
+
+def test_default_html_class_names_reflect_prefix():
+    classes = default_html_class_names("custom")
+
+    assert classes.prefix == "custom"
+    assert classes.root == "custom-diff"
+    assert classes.root_layout_unified == "custom-diff--layout-unified"
+    assert classes.segment_inserted == "custom-segment--inserted"
+    assert classes.gutter_left == "custom-gutter--left"

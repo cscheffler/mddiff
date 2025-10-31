@@ -1,164 +1,115 @@
 # mddiff
 
-Normalization and diff tooling for Markdown documents.
+Normalization-aware Markdown diffs with both terminal-friendly and HTML renderers.
 
-## Installation
+## Highlights
 
-Clone the repository and install the package in editable mode:
+- Canonicalizes Markdown before diffing so stylistic variations (spacing, list markers, heading styles) do not mask real changes.
+- Produces structured diff data (`DiffResult`, `DiffLine`, `InlineDiffSegment`) for programmatic use, plus ready-to-use text and HTML renderers.
+- Ships with a zero-dependency CLI that mirrors the Python API and supports unified text, split HTML, and unified HTML output.
+- Exposes styling hooks (`HtmlRenderOptions`, `default_html_styles`, `default_html_class_names`) so downstream tooling can own presentation without rewriting the diff logic.
+
+## Quick Start
+
+### Install
 
 ```bash
-pip install -e .
+pip install -e .  # editable install for development
 ```
 
-This provides the `mddiff` console command and exposes the Python library APIs.
+Use `pip install .` if you only need the CLI.
 
-If you only need the CLI, you can also install straight from the source tree:
-
-```bash
-pip install .
-```
-
-## CLI Usage
-
-The CLI compares two Markdown documents, running normalization before diffing so stylistic differences are minimized.
+### CLI
 
 ```bash
 mddiff path/to/left.md path/to/right.md
 ```
 
-- Exit status `0` indicates no differences were found, while `1` indicates changes.
-- Use `-` to read one side from standard input, e.g. `mddiff - path/to/right.md`. (Both sides cannot be `-`.)
-- Passing `--version` prints the CLI version and exits.
-- Inline diff sensitivity can be tuned via `--inline-min-real-quick`, `--inline-min-quick`, and `--inline-min-ratio`.
-- Use `--context N` to limit output to `N` unchanged lines around each change (omit the flag for full context).
+- Exit code `0` means documents match; `1` indicates differences.
+- Read one side from stdin with `-` (only one side may be stdin).
+- Key flags:
+  - `--inline-min-real-quick`, `--inline-min-quick`, `--inline-min-ratio` tune inline edit sensitivity.
+  - `--context N` controls unchanged context around edits (default: full diff).
+  - `--format {text, html-split, html-unified}` selects the renderer (default: `text`).
 
-Sample output:
-
-```
--Value [-one-]
-+Value {+two+}
-```
-
-Example forcing full-line replacements:
-
-```bash
-mddiff --inline-min-ratio 0.9 left.md right.md
-```
-
-## Library Usage
+### Python
 
 ```python
 from pathlib import Path
+from mddiff import (
+    InlineDiffConfig,
+    HtmlRenderOptions,
+    diff,
+    render_html,
+    render_unified,
+)
 
-from mddiff import InlineDiffConfig, HtmlRenderOptions, diff, render_html, render_unified
+left = "# Title\n\nValue one\n"
+right = "# Title\n\nValue two\n"
 
-result = diff("old text\n", "new text\n")
+result = diff(left, right, inline_config=InlineDiffConfig(min_ratio=0.4))
+
 if result.has_changes:
-    print(render_unified(result))
-
-# Tune inline diff sensitivity by passing InlineDiffConfig.
-config = InlineDiffConfig(min_ratio=0.5)
-result = diff("alpha\n", "beta\n", inline_config=config)
-
-# Render HTML with default inline stylesheet
-if result.has_changes:
-    html = render_html(result)
+    print(render_unified(result))  # unified text
+    html = render_html(result, HtmlRenderOptions(layout="unified"))
     Path("diff.html").write_text(html, encoding="utf-8")
-
-# Override the class prefix, skip embedding styles, and switch to unified layout
-options = HtmlRenderOptions(include_styles=False, class_prefix="docs", layout="unified")
-render_html(result, options=options)
 ```
 
-See `tests/` for additional examples of working with the diff data structures.
+## Core Concepts & API
 
-## Library Reference
+### Normalization (`normalize`)
 
-### `normalize`
+- Accepts `str`, `bytes`, and file-like objects, always returning UTF-8 text with consistent newlines and a trailing newline.
+- Canonicalizes Markdown structure (headings, lists, block quotes, tables, paragraphs, fenced code) and tracks each transformation in `NormalizationMetadata.transformations`.
+- Returns a `NormalizedDocument` with normalized `lines`, `metadata`, a stable `digest`, and convenience helpers like `.text`.
 
-- Accepts `str`, `bytes`, or file-like objects and coerces them to UTF-8 text before processing (`source_id` defaults to `"unknown"`).
-- Normalizes line endings to `\n`, strips UTF-8 BOMs, trims leading/trailing blank blocks, and guarantees a trailing newline so downstream diffs have stable anchors.
-- Canonicalizes Markdown structure while counting changes in `NormalizationMetadata.transformations`:
-  - Fenced code: markers become triple backticks (` ``` `) with preserved language hints and auto-closing of unterminated fences.
-  - Headings: setext underlines become ATX (`#`, `##`), ATX headings lose trailing hashes, and internal whitespace collapses to single spaces.
-  - Lists: unordered bullets normalize to `-`, ordered lists renumber to `1.` with multiples-of-four indentation; nested content respects escape-aware inline cleanup.
-  - Block quotes: redundant spaces after `>` collapse, nested quotes keep consistent `>` depth, and empty quote lines become bare markers.
-  - Horizontal rules normalize to `---`.
-  - Tables: cell spacing and alignment markers are rebuilt (`|` padded, separator dashes elongated to ≥3, alignment colons retained), with inline emphasis normalized inside cells.
-  - Paragraphs: soft-wrapped text collapses to single-space-separated lines and inline underscores convert to `*`/`**` unless escaped or inside code.
-- Returns a `NormalizedDocument` containing `lines` (tuple of strings with newline terminators), `metadata` (lengths + counters), `digest` (SHA-256 of the normalized text), and `source_id`.
-- Convenience helpers:
-  - `NormalizedDocument.text` reassembles the document (`"".join(lines)`), preserving the canonical trailing newline.
-  - `NormalizationMetadata.original_length` / `normalized_length` allow you to audit the shrink/grow ratio before storing results.
+### Diffing (`diff`, `diff_normalized`)
 
-Example introspecting transformation counters:
-
-```python
-doc = normalize(raw_text, source_id="report.md")
-print(doc.metadata.transformations.get("unordered_list_marker", 0))
-print(doc.metadata.transformations.get("table_separator", 0))
-```
-
-### `diff`
-
-- Accepts raw Markdown strings (or bytes/file-like objects) or precomputed `NormalizedDocument` instances. When strings are passed, `normalize` is invoked internally; use `left_id` / `right_id` to label the sources in metadata.
-- Returns a `DiffResult` capturing the normalized left/right documents and a tuple of `DiffLine` entries.
-- Optional parameters:
-  - `inline_config`: `InlineDiffConfig` instance controlling when replacements stay inline (defaults detailed below).
-  - `context`: `None` (full diff) or a non-negative integer limiting unchanged lines around edits. Setting `0` emits only change hunks with unified headers. Negative values raise `ValueError`.
-- Pairing logic:
-  - Computes opcodes with `difflib.SequenceMatcher(autojunk=False)` on normalized line tuples.
-  - `replace` operations become inline edits when similarity thresholds pass; otherwise they degrade into delete/insert pairs to reduce noise.
-- Use `diff_normalized(left_doc, right_doc, ...)` when you already have normalized outputs and want to skip re-normalization (e.g., caching or comparing multiple branches).
-
-### `InlineDiffConfig`
-
-- Thresholds gate the `SequenceMatcher` heuristics used in `_should_inline`:
-  - `min_real_quick_ratio` (default `0.2`)
-  - `min_quick_ratio` (default `0.3`)
-  - `min_ratio` (default `0.35`)
-- Inline diffs emit `{+insertions+}` and `[-deletions-]` for the differing spans. Raising any threshold pushes borderline replacements into line-level delete/insert pairs.
-- Pass `InlineDiffConfig(min_ratio=0.9)` to mimic a diff that only treats near-identical lines as edited, or supply a fully custom config via CLI flags (`--inline-min-*`).
-
-### `DiffResult` and `DiffLine`
-
-- `DiffResult.lines` is a tuple of `DiffLine` objects ordered as they appear in the unified diff.
-- `DiffResult.has_changes` is the quick check for “should we display anything?” and stays `False` only when every `DiffLine.kind` is `ChangeType.UNCHANGED`.
-- `DiffLine` fields:
-  - `kind`: `ChangeType.UNCHANGED`, `INSERTED`, `DELETED`, `EDITED`, or `SKIPPED` (the latter marks synthetic hunk headers when `context` is applied).
-  - `left_lineno` / `right_lineno`: 1-based positions in the normalized documents, `None` when the side is absent.
-  - `left_text` / `right_text`: full line content including newline terminators.
-  - `segments`: tuple of `InlineDiffSegment` objects (for edited lines) detailing inline change spans; empty tuple for unchanged or structural deletions/insertions.
-- `InlineDiffSegment` uses the same `ChangeType` enum and stores `left_text` / `right_text` payloads so custom renderers can rebuild context-sensitive displays.
+- Compare raw Markdown strings or pre-normalized documents. Source identifiers (`left_id`, `right_id`) feed metadata.
+- Optional `InlineDiffConfig` thresholds decide when replacements stay inline vs. expand to delete/insert pairs.
+- Optional `context` keeps surrounding unchanged lines; `None` emits the full diff.
+- Outputs a `DiffResult` containing ordered `DiffLine` entries. Each `DiffLine` carries change kind, line numbers, text, and inline `segments` for edited lines.
 
 ### Rendering
 
-- `render_unified(diff_result)` produces a diff-like string with unified headers (`@@ -l,c +r,c @@`), `-` / `+` prefixes, and inline `{+ +}` / `[- -]` markers.
-- `render_html(diff_result, options=None)` returns a styled HTML snippet (optionally including a `<style>` block) with semantic class names for lines, gutters, markers, and inline segments. Use `HtmlRenderOptions` to toggle stylesheet embedding, rename the class prefix, show/hide line numbers, or choose between `split` (side-by-side) and `unified` layouts. Call `default_html_styles()` when you want a standalone stylesheet string.
-- The renderer preserves trailing newlines from the source lines via dedicated inline segments, ensuring round-tripping when piping back into files or patch tooling.
-- If you supply your own renderer, treat `ChangeType.SKIPPED` as metadata (not a content change) and skip those lines when aggregating change statistics.
+- `render_unified(diff_result)` emits a unified diff string with `{+ +}` / `[- -]` inline markers.
+- `render_html(diff_result, options=None)` renders semantic HTML. `HtmlRenderOptions` toggles stylesheet embedding, renames the class prefix, controls line numbers, and chooses between `split` (side-by-side) and `unified` layouts.
+- `default_html_styles(prefix)` returns the inline CSS used by `render_html` for a given prefix so you can host the stylesheet separately.
 
-### Error Handling & Guarantees
+## HTML Styling Reference
 
-- `normalize` raises `TypeError` for unsupported input types (anything without a readable interface) and assumes UTF-8 for byte streams.
-- `diff` / `diff_normalized` raise `ValueError` when `context` is negative; other parameters fall back to well-defined defaults.
-- Normalization is idempotent: `normalize(normalize(text).text)` yields the same digest and line tuple (enforced by `tests/test_real_documents.py`).
-- Large-document performance is defended with fixtures covering 100 kB inputs within a one-second budget (`tests/test_performance.py`).
+`render_html` keeps presentation minimal so callers can compose their own UI. Retrieve the emitted class names with `default_html_class_names(prefix="mddiff")`; the helper returns a dataclass listing every class applied to lines, gutters, segments, and layout containers.
 
-## Integration Patterns
+```python
+from mddiff import default_html_class_names
 
-- **Cache normalization results**: Use `NormalizedDocument.digest` as a content hash to skip re-normalization or to persist normalized snapshots alongside originals.
-- **Reuse normalized inputs**: When diffing a document against many revisions, call `normalize` once per version and feed the cached `NormalizedDocument` instances into `diff_normalized`.
-- **Tune inline noise**: Start with the defaults, then lower thresholds for prose-heavy docs (more inline highlights) or raise them for code-focused diffs where line-level clarity matters.
-- **Context-aware presentation**: Pass `context=0` for change-only summaries (e.g., CI annotations) or a higher number for user-facing review tools. Remember CLI’s `--context` flag maps directly to the same behavior.
-- **Transformation metrics**: Leverage `NormalizationMetadata.transformations` to alert when normalization makes unexpected changes (e.g., list bullet rewrites) in automated pipelines.
-- **Streaming & memory**: `diff` yields `DiffLine` entries in order; if you need streaming consumption, iterate `DiffResult.lines` without forcing `render_unified` and emit as you go.
+classes = default_html_class_names()
+print(classes.segment_inserted)  # "mddiff-segment--inserted"
+```
 
-## CLI Parity
+When re-rendering the Markdown content yourself, preserve (or map) these classes to keep diff colouring and strikethroughs intact.
 
-- CLI flags mirror the library surface:
-  - `--inline-min-real-quick`, `--inline-min-quick`, `--inline-min-ratio` map to `InlineDiffConfig` fields.
-  - `--context` matches the `context` parameter on `diff`.
-- Use `--format html-split` for side-by-side HTML or `--format html-unified` for unified HTML instead of text (default: text). The HTML output embeds a minimal stylesheet by default, mirroring `render_html` and its layout-specific classes.
-- CLI reads a single side from stdin (`-`) and prevents double-stdin to avoid blocking; exit code `0` means no changes, `1` means differences were detected.
-- Rendering matches `render_unified` output, so you can capture CLI output and feed it back into tools expecting standard unified diff formatting.
+## CLI Reference
+
+- `mddiff LEFT RIGHT` — primary entry point. LEFT/RIGHT are file paths or `-` for stdin (only one side may use stdin).
+- `--inline-min-real-quick`, `--inline-min-quick`, `--inline-min-ratio` — pass-through to `InlineDiffConfig` thresholds.
+- `--context N` — show `N` unchanged lines of context around each change; `0` shows only change hunks.
+- `--format {text, html-split, html-unified}` — select renderer (text is default).
+- `--version` — print package version.
+
+Output is written to stdout; errors (e.g., invalid arguments) surface on stderr.
+
+## Integration Tips
+
+- **Cache normalized snapshots:** reuse `NormalizedDocument` instances and their `digest` to avoid repeated normalization.
+- **Tune inline noise:** lower ratio thresholds for prose to emphasize inline edits; raise them for code so full-line replacements are clearer.
+- **Stream results:** iterate `DiffResult.lines` directly if you want to process diffs without materializing renderer output.
+- **Highlight metrics:** use `NormalizationMetadata.transformations` to detect when normalization rewrote specific structures (e.g., list markers).
+
+## Guarantees & Error Handling
+
+- `normalize` raises `TypeError` for unsupported input types; `diff`/`diff_normalized` raise `ValueError` for negative `context`.
+- Normalization is idempotent (`normalize(normalize(text).text)` yields the same document).
+- Large-document performance is covered by regression tests (100 kB fixtures complete in under one second).
+
+See the `tests/` directory for executable examples and regression coverage.

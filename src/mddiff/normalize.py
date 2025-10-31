@@ -24,7 +24,23 @@ ATX_HEADING_RE = re.compile(r"^(?P<marker>#{1,6})(?P<body>\s.*)?$")
 def normalize(
     value: str | bytes | IO[str] | IO[bytes], *, source_id: str = "unknown"
 ) -> NormalizedDocument:
-    """Normalize Markdown text into a deterministic representation."""
+    """Normalize Markdown text into a deterministic representation.
+
+    Parameters
+    ----------
+    value:
+        Markdown content as text, bytes, or a readable stream. Bytes are
+        decoded as UTF-8.
+    source_id:
+        Identifier recorded on the resulting :class:`NormalizedDocument`
+        (defaults to ``"unknown"``).
+
+    Returns
+    -------
+    NormalizedDocument
+        Canonical Markdown with line-level metadata, transformation counters,
+        and a stable SHA-256 digest.
+    """
 
     original_text = _coerce_text(value)
     original_text = _normalize_line_endings(original_text)
@@ -524,6 +540,7 @@ def _normalize_table_separator_cell(cell: str) -> str:
 
 
 def _normalize_atx_heading(line: str) -> str:
+    """Normalize ATX heading spacing and trailing decorations."""
     stripped = line.strip()
     match = ATX_HEADING_RE.match(stripped)
     if not match:

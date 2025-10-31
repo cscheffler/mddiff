@@ -19,15 +19,56 @@ class HtmlRenderOptions:
     layout: Literal["split", "unified"] = "split"
 
 
+@dataclass(frozen=True)
+class HtmlClassNames:
+    """Names of CSS classes emitted by :func:`render_html`."""
+
+    prefix: str
+    root: str
+    root_layout_split: str
+    root_layout_unified: str
+    hunk: str
+    line: str
+    line_unchanged: str
+    line_inserted: str
+    line_deleted: str
+    line_edited: str
+    gutter: str
+    gutter_left: str
+    gutter_right: str
+    gutter_empty: str
+    gutter_hidden: str
+    content: str
+    content_left: str
+    content_right: str
+    content_unified: str
+    content_empty: str
+    segment: str
+    segment_unchanged: str
+    segment_inserted: str
+    segment_deleted: str
+    segment_edited: str
+    segment_side_left: str
+    segment_side_right: str
+
+
 def render_html(diff_result: DiffResult, options: HtmlRenderOptions | None = None) -> str:
-    """Render a diff result as annotated HTML.
+    """Render a :class:`DiffResult` to semantic HTML.
 
     Parameters
     ----------
     diff_result:
-        The diff computation output to render.
+        Structured diff data produced by :func:`mddiff.diff` or
+        :func:`mddiff.diff_normalized`.
     options:
-        Optional rendering tweaks. When omitted, sensible defaults are used.
+        Optional :class:`HtmlRenderOptions` to tweak styling, line numbers, and
+        layout variants.
+
+    Returns
+    -------
+    str
+        HTML string containing the rendered diff. When ``include_styles`` is
+        True, the markup is prefixed with a `<style>` block for convenience.
     """
 
     opts = options or HtmlRenderOptions()
@@ -58,7 +99,7 @@ def render_html(diff_result: DiffResult, options: HtmlRenderOptions | None = Non
 
 
 def default_html_styles(class_prefix: str = "mddiff") -> str:
-    """Return the default CSS used by ``render_html``.
+    """Return the default CSS used by :func:`render_html`.
 
     The stylesheet is namespace-aware: changing ``class_prefix`` lets callers
     embed multiple rendered diffs on the same page without collisions.
@@ -173,7 +214,43 @@ def default_html_styles(class_prefix: str = "mddiff") -> str:
     )
 
 
+def default_html_class_names(class_prefix: str = "mddiff") -> HtmlClassNames:
+    """Report the class names emitted by :func:`render_html` for a prefix."""
+
+    registry = _ClassRegistry(class_prefix)
+    return HtmlClassNames(
+        prefix=registry.prefix,
+        root=registry.root,
+        root_layout_split=registry.root_layout("split"),
+        root_layout_unified=registry.root_layout("unified"),
+        hunk=registry.hunk,
+        line=registry.line,
+        line_unchanged=registry.line_kind(ChangeType.UNCHANGED),
+        line_inserted=registry.line_kind(ChangeType.INSERTED),
+        line_deleted=registry.line_kind(ChangeType.DELETED),
+        line_edited=registry.line_kind(ChangeType.EDITED),
+        gutter=registry.gutter,
+        gutter_left=registry.gutter_side("left"),
+        gutter_right=registry.gutter_side("right"),
+        gutter_empty=registry.gutter_empty,
+        gutter_hidden=registry.gutter_hidden,
+        content=registry.content,
+        content_left=registry.content_side("left"),
+        content_right=registry.content_side("right"),
+        content_unified=registry.content_unified,
+        content_empty=registry.content_empty,
+        segment=registry.segment,
+        segment_unchanged=registry.segment_kind(ChangeType.UNCHANGED),
+        segment_inserted=registry.segment_kind(ChangeType.INSERTED),
+        segment_deleted=registry.segment_kind(ChangeType.DELETED),
+        segment_edited=registry.segment_kind(ChangeType.EDITED),
+        segment_side_left=registry.segment_side("left"),
+        segment_side_right=registry.segment_side("right"),
+    )
+
+
 def _render_split_line_html(line: DiffLine, classes: _ClassRegistry, opts: HtmlRenderOptions) -> str:
+    """Render a single diff line using the split (side-by-side) layout."""
     if line.kind is ChangeType.SKIPPED:
         text = (line.left_text or line.right_text or "").rstrip("\n")
         hunk = escape(text)
@@ -218,6 +295,7 @@ def _render_split_line_html(line: DiffLine, classes: _ClassRegistry, opts: HtmlR
 def _render_unified_line_html(
     line: DiffLine, classes: _ClassRegistry, opts: HtmlRenderOptions
 ) -> tuple[str, ...]:
+    """Render diff lines for the unified layout, including headers."""
     if line.kind is ChangeType.SKIPPED:
         text = (line.left_text or line.right_text or "").rstrip("\n")
         hunk = escape(text)
@@ -273,6 +351,7 @@ def _render_unified_entry(
     left_lineno: int | None,
     right_lineno: int | None,
 ) -> str:
+    """Render a single unified diff entry for unchanged/insert/delete/edit."""
     line_classes = [classes.line, classes.line_kind(entry_kind)]
     attrs = [f'class="{" ".join(line_classes)}"', f'data-change-kind="{entry_kind.value}"']
     if left_lineno is not None:
@@ -312,6 +391,7 @@ def _render_unified_content(
     side: str | None,
     classes: _ClassRegistry,
 ) -> str:
+    """Render the HTML content span for a unified diff entry."""
     if entry_kind is ChangeType.EDITED:
         return _render_combined_segments(line, classes)
 
@@ -328,6 +408,7 @@ def _render_unified_content(
 
 
 def _render_side_content(line: DiffLine, side: str, classes: _ClassRegistry) -> str:
+    """Render the left or right content cell for split layout."""
     has_content = False
     if line.kind is ChangeType.EDITED:
         rendered = _render_inline_segments(line, side, classes)
@@ -353,6 +434,7 @@ def _render_inline_segments(
     *,
     include_newline: bool = True,
 ) -> str:
+    """Render inline diff segments for the requested side."""
     segments: Iterable[InlineDiffSegment] = line.segments
     pieces: list[str] = []
     for segment in segments:
@@ -373,12 +455,14 @@ def _render_inline_segments(
 
 
 def _segment_display_kind(segment: InlineDiffSegment, side: str) -> ChangeType:
+    """Return the appropriate change type to display for a segment."""
     if segment.kind is ChangeType.EDITED:
         return ChangeType.DELETED if side == "left" else ChangeType.INSERTED
     return segment.kind
 
 
 def _segment_text(segment: InlineDiffSegment, side: str) -> str | None:
+    """Return the text to display for a segment on the requested side."""
     if side == "left":
         if segment.kind is ChangeType.INSERTED:
             return None
@@ -389,12 +473,14 @@ def _segment_text(segment: InlineDiffSegment, side: str) -> str | None:
 
 
 def _extract_text(line: DiffLine, side: str) -> str:
+    """Return the raw line text for the requested diff side."""
     if side == "left":
         return line.left_text or ""
     return line.right_text or ""
 
 
 def _render_combined_segments(line: DiffLine, classes: _ClassRegistry) -> str:
+    """Render inline segments for an edited unified entry in a single row."""
     pieces: list[str] = []
     for segment in line.segments:
         if segment.kind is ChangeType.UNCHANGED:
@@ -429,6 +515,7 @@ def _render_combined_segments(line: DiffLine, classes: _ClassRegistry) -> str:
 
 
 def _normalize_unified_text(text: str) -> str:
+    """Remove newline characters so unified rows stay on one line."""
     if not text:
         return ""
     return text.replace("\n", "")
@@ -441,6 +528,7 @@ def _render_gutter(
     *,
     hidden: bool = False,
 ) -> str:
+    """Render the left or right gutter cell containing line numbers."""
     display = "" if value is None else str(value)
     gutter_classes = [classes.gutter, classes.gutter_side(side)]
     if hidden:
@@ -456,6 +544,7 @@ class _ClassRegistry:
     """Helper for constructing namespaced CSS classes."""
 
     def __init__(self, prefix: str) -> None:
+        """Initialise the registry with a sanitized prefix."""
         self.prefix = _normalize_prefix(prefix)
         self.root = f"{self.prefix}-diff"
         self.hunk = f"{self.prefix}-hunk"
@@ -469,25 +558,32 @@ class _ClassRegistry:
         self.gutter_hidden = f"{self.prefix}-gutter--hidden"
 
     def line_kind(self, kind: ChangeType) -> str:
+        """Return the class name for a line representing ``kind``."""
         return f"{self.prefix}-line--{kind.value}"
 
     def root_layout(self, layout: str) -> str:
+        """Return the container class for the requested layout variant."""
         return f"{self.prefix}-diff--layout-{layout}"
 
     def gutter_side(self, side: str) -> str:
+        """Return the class name for a gutter on the given side."""
         return f"{self.prefix}-gutter--{side}"
 
     def content_side(self, side: str) -> str:
+        """Return the content span class for the given side."""
         return f"{self.prefix}-content--{side}"
 
     def segment_kind(self, kind: ChangeType) -> str:
+        """Return the base class name for a segment of ``kind``."""
         return f"{self.prefix}-segment--{kind.value}"
 
     def segment_side(self, side: str) -> str:
+        """Return the class to annotate a segment with its originating side."""
         return f"{self.prefix}-segment--side-{side}"
 
 
 def _normalize_prefix(prefix: str) -> str:
+    """Sanitize the CSS class prefix, falling back to ``mddiff``."""
     cleaned = (prefix or "mddiff").strip()
     if not cleaned:
         cleaned = "mddiff"

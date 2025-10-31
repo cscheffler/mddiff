@@ -19,7 +19,29 @@ def diff(
     inline_config: InlineDiffConfig | None = None,
     context: int | None = None,
 ) -> DiffResult:
-    """Normalize inputs as needed and compute a unified diff."""
+    """Compute a Markdown diff between two inputs.
+
+    Parameters
+    ----------
+    left, right:
+        Raw Markdown strings/bytes or pre-normalized :class:`NormalizedDocument`
+        instances. Strings are normalized automatically before diffing.
+    left_id, right_id:
+        Human-friendly identifiers recorded in the resulting metadata when
+        normalization is performed on behalf of the caller.
+    inline_config:
+        Optional :class:`InlineDiffConfig` controlling when replacements stay
+        inline versus expanding into delete/insert pairs.
+    context:
+        ``None`` for a full diff or an integer limiting the number of
+        unchanged lines emitted around each change.
+
+    Returns
+    -------
+    DiffResult
+        Structured diff output containing the normalized documents and the
+        ordered diff lines ready for rendering.
+    """
 
     left_doc = left if isinstance(left, NormalizedDocument) else normalize(left, source_id=left_id)
     right_doc = right if isinstance(right, NormalizedDocument) else normalize(right, source_id=right_id)
@@ -38,7 +60,24 @@ def diff_normalized(
     inline_config: InlineDiffConfig | None = None,
     context: int | None = None,
 ) -> DiffResult:
-    """Compute a diff between two already-normalized documents."""
+    """Diff two pre-normalized Markdown documents.
+
+    Parameters
+    ----------
+    left, right:
+        Normalized Markdown documents produced by :func:`normalize`.
+    inline_config:
+        Optional :class:`InlineDiffConfig` governing inline replacement
+        thresholds.
+    context:
+        ``None`` for full output or an integer limiting unchanged context
+        lines around each change hunk.
+
+    Returns
+    -------
+    DiffResult
+        Structured diff data referencing the supplied normalized documents.
+    """
 
     matcher = SequenceMatcher(None, left.lines, right.lines, autojunk=False)
     lines: List[DiffLine] = []
@@ -70,6 +109,7 @@ def _build_unchanged_lines(
     i2: int,
     j1: int,
 ) -> Iterable[DiffLine]:
+    """Yield unchanged diff lines for a matching block."""
     for offset, left_idx in enumerate(range(i1, i2)):
         right_idx = j1 + offset
         line_text = left.lines[left_idx]
@@ -87,6 +127,7 @@ def _build_deleted_lines(
     i1: int,
     i2: int,
 ) -> Iterable[DiffLine]:
+    """Yield diff lines representing deletions from the left document."""
     for left_idx in range(i1, i2):
         line_text = left.lines[left_idx]
         yield DiffLine(
@@ -103,6 +144,7 @@ def _build_inserted_lines(
     j1: int,
     j2: int,
 ) -> Iterable[DiffLine]:
+    """Yield diff lines representing insertions from the right document."""
     for right_idx in range(j1, j2):
         line_text = right.lines[right_idx]
         yield DiffLine(
@@ -123,6 +165,7 @@ def _build_replaced_lines(
     j2: int,
     inline_config: InlineDiffConfig | None,
 ) -> Iterable[DiffLine]:
+    """Expand replacement blocks into edited or delete/insert line pairs."""
     lines: List[DiffLine] = []
     left_span = left.lines[i1:i2]
     right_span = right.lines[j1:j2]
@@ -195,6 +238,7 @@ def _should_inline(
     right_line: str,
     inline_config: InlineDiffConfig | None,
 ) -> bool:
+    """Return True when two lines should be rendered with inline edits."""
     left_body = left_line.rstrip("\n")
     right_body = right_line.rstrip("\n")
     if not left_body and not right_body:
@@ -210,6 +254,7 @@ def _should_inline(
 
 
 def _apply_context(lines: List[DiffLine], context: int | None) -> Tuple[DiffLine, ...]:
+    """Filter diff lines according to the requested context window."""
     if context is None:
         return tuple(lines)
     if context < 0:
@@ -274,6 +319,7 @@ def _make_hunk_header(
     prev_left: int,
     prev_right: int,
 ) -> DiffLine | None:
+    """Create a synthetic skipped-line header for a context block."""
     block = lines[start : end + 1]
     left_numbers = [line.left_lineno for line in block if line.left_lineno is not None]
     right_numbers = [line.right_lineno for line in block if line.right_lineno is not None]

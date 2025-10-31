@@ -54,6 +54,7 @@ def main(argv: Iterable[str] | None = None) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser for the ``mddiff`` CLI."""
     parser = argparse.ArgumentParser(
         prog="mddiff",
         description="Unified Markdown diff with normalization-aware comparison.",
@@ -99,6 +100,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _load_input(identifier: str) -> tuple[str, str]:
+    """Load file or stdin content, returning the text and its identifier."""
     if identifier == "-":
         data = sys.stdin.read()
         return data, "stdin"
@@ -108,6 +110,7 @@ def _load_input(identifier: str) -> tuple[str, str]:
 
 
 def _build_inline_config(args: argparse.Namespace) -> InlineDiffConfig | None:
+    """Create an InlineDiffConfig when any CLI thresholds were supplied."""
     provided = [
         args.inline_min_real_quick,
         args.inline_min_quick,
@@ -137,6 +140,7 @@ def _build_inline_config(args: argparse.Namespace) -> InlineDiffConfig | None:
 
 
 def _resolve_version() -> str:
+    """Return the installed package version or ``0.0.0`` when unknown."""
     try:  # pragma: no cover - importlib metadata availability depends on packaging context
         from importlib.metadata import PackageNotFoundError, version
     except ImportError:  # pragma: no cover
